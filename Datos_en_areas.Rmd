@@ -275,15 +275,19 @@ ny %>%
 m_riesgo <- ggplot(riesgo)+
   geom_sf(aes(fill = indice_riesgo))+
   labs(title = 'Mapa de riesgo Constante')+
-  scale_fill_gradientn(colours = viridisLite::viridis(20, begin = 0.17, end = 0.98))+
+  scale_fill_gradientn(colours = viridisLite::viridis(20, begin = 0.17,
+                                                      end = 0.98),
+                       limits = c(-2.2, 3.7)) +
   theme_bw()+
   theme(plot.title  = element_text(size = 14, face = 'bold', hjust = 0.5))
 
 m_actual <- ggplot(riesgo)+
   geom_sf(aes(fill = indice))+
   labs(title = 'Mapa de riesgo Standard')+
-  scale_fill_gradientn(colours = viridisLite::viridis(20, begin = 0.17, end = 0.98))+
-  theme_bw()+
+  scale_fill_gradientn(colours = viridisLite::viridis(20, begin = 0.17,
+                                                      end = 0.98),
+                       limits = c(-2.2, 3.7)) +
+  theme_bw() +
   theme(plot.title  = element_text(size = 14, face = 'bold', hjust = 0.5))
 
 cowplot::plot_grid(m_actual, m_riesgo, align = 'hv', ncol = 2)
