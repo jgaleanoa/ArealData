@@ -222,9 +222,9 @@ Es la forma más común de abordar la autocorrelación espacial. Se calcula como
 
 $$I = \frac{n}{\sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij}}\ \frac{\sum_{i=1}^{n} \sum_{j=1}^{n} (y_i - \bar{y})(y_j - \bar{y})}{\sum_{i=1}^{n} (y_i - \bar{y})^2}$$ donde:
 
--   $y_i$: Es la $ith$ observación
+-   $y_i$: Es la $i$-ésima observación
 -   $\bar{y}$: Es la media de la variable de interés
--   $w_{ij}$: Es la ponderación espacial de las relaciones entre *i* e *j*.
+-   $w_{ij}$: Es la ponderación espacial de las relaciones entre $i$ e $j$.
 
 ::: {style="text-align: justify"}
 Centrarse en la media es equivalente a afirmar que el modelo correcto tiene una media constante, y que cualquier patrón restante después del centrado es causado por las relaciones espaciales codificadas en los pesos espaciales.
@@ -305,7 +305,7 @@ $$
 I = cte \cdot \sum_i I_i
 $$
 
-Reemplazando $q_i = y_i - \bar{y}$ se obtiene la expresión original propuesta por Anselin, 1995.
+Reemplazando $z_i = y_i - \bar{y}$ se obtiene la expresión original propuesta por Anselin, 1995.
 
 $$
 I_i = z_i \sum_j w_{ij}z_j
