@@ -321,8 +321,27 @@ Finalmente, para cada $I_i$ se puede aplicar un test de significancia estadísti
 
 ![Cuadrantes de asociación espacial. Modificado de Siabato et al., 2018](grafico.png)
 
+## ¿Qué es un rezago espacial?
+
+Antes de presentar la construcción del diagrama de dispersión de Moran, se presenta brevemente la definición de los rezagos espaciales, necesarios para la construcción de la gráfica ya mencionada.
+
+Luego de tener definida la estructura de pesos en la matriz $W$, los rezagos espaciales se definen como el producto entre la matriz de pesos y el valor de la variable de interés $y$. En pocas palabras, un rezago espacial es una suma de valores de los vecinos ponderada espacialmente.
+(<a href="https://geodacenter.github.io/workbook/4d_weights_applications/lab4d.html#spatially-lagged-variables">Applications of Spatial Weights</a>)
+
+$$
+Wy
+$$
+Esta operación está bien definida puesto que $W \in \mathbb{R}^{n\times n}$ y $y \in \mathbb{R}^{n \times 1}$.
+
+En la práctica está operación suele hacerse como:
+
+$$
+[Wy]_i = \sum_{j=1}^n w_{ij}y_j
+$$
+lo cual es equivalente a la operación matricial definida previamente, sin embargo, como en la vida real se suele trabajar con grandes tamaños de muestra, guardar la matriz $W$ como una "matriz pura" puede resultar en un gran desperdicio de memoria y sus valores suelen ser guardados en una "sparse matrix". 
+
 ::: {style="text-align: justify"}
-El gráfico de dispersión de Moran por convención posiciona la variable de interés en el eje x y los valores de rezago espacial (La suma de valores de los vecinos espacialmente ponderada) en el eje y. El índice global de Moran es una relación lineal entre estos valores y es dibujado como la pendiente.
+El gráfico de dispersión de Moran por convención posiciona la variable de interés en el eje x y los valores de rezago espacial en el eje y. El índice global de Moran es una relación lineal entre estos valores y es dibujado como la pendiente.
 :::
 
 ```{r message=F, include=F}
