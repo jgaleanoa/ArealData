@@ -15,6 +15,8 @@ library(knitr)
 library(sf)
 library(tidyverse)
 library(spdep)
+library(rgdal)
+library(RColorBrewer)
 ```
 
 # Modelación de datos en áreas
@@ -26,7 +28,7 @@ library(spdep)
 Se utilizará los datos de censo para 8 condados centrales del estado de New York
 
 ```{r message=FALSE, warning=FALSE}
-ny <- st_read('data/NY8_utm18.shp')
+ny <- st_read("data/NY8_utm18.shp")
 plot(st_geometry(ny), axes = T)
 ```
 
@@ -38,41 +40,44 @@ Crear los vecinos y pesos no es un proceso fácil y por lo tanto existen varias 
 
 ## Objetos vecinos
 
-Un archivo `gal` es una matriz de pesos o vecinos producida por el software GeoDa.
-
-Las observaciones enlazadas (vecinas) son objetos de clase `nb` en el paquete `spdep`; dichos objetos son una lista de tamaño $n$
+En el paquete `spdep` las observaciones enlazadas (vecinas) son objetos de clase `nb`; dichos objetos pueden ser vistos como una lista de tamaño $n$ donde cada elemento contiene un vector con los indices de sus correspondientes vecinos. Si alguna observación no tiene vecinos, la entrada correspondiente contiene el valor cero (0). Estos objetos también contiene otro tipo de atributos como lo puede ser un vector de caracteres para identificar cada una de las regiones consideradas, además de un vector lógico (booleano) que indica si una relación es simétrica o no (se discute más adelante). La función `card()` devuelve el número de vecinos para cada elemento de la lista (objeto `nb`). A continuación se presenta brevemente la estructura de estos objetos espaciales:
 
 ```{r message=FALSE, warning=FALSE}
-NY_nb <- read.gal('data/NY_nb.gal', # read.gal carga el archivo de clase nb
-                  region.id = as.numeric(row.names(ny))-1) # Debe empezar en 0
+NY_nb <- read.gal("data/NY_nb.gal", # read.gal carga el archivo de clase nb
+  region.id = as.numeric(row.names(ny)) - 1
+) # Debe empezar en 0
+summary(NY_nb)
 
-Syracuse <- filter(ny, AREANAME == 'Syracuse city')
-Sy0_nb <- subset(NY_nb, ny$AREANAME == 'Syracuse city')
+plot(st_geometry(ny), border = "grey60", axes = T)
+plot(NY_nb, st_geometry(ny), pch = 19, cex = 0.6, add = T)
 ```
 
-Se realiza un subset del área de trabajo por temas de simplicidad.
+Un archivo `gal` es una matriz de pesos o vecinos producida por el software GeoDa. Para esta situación particular, todas las regiones contiguas son consideradas como regiones vecinas.
+
+Luego de ilustrar los datos espaciales que van a ser tratados, se usará un subconjunto de ellos para mostrar el uso de las principales funciones y métodos para los objetos `nb`; el subconjunto a usar corresponde a Syracuse city.
 
 ```{r}
-plot(st_geometry(Syracuse), border = 'grey60', axes = T)
+Syracuse <- filter(ny, AREANAME == "Syracuse city")
+Sy0_nb <- subset(NY_nb, ny$AREANAME == "Syracuse city")
+
+plot(st_geometry(Syracuse), border = "grey60", axes = T)
 plot(Sy0_nb, st_geometry(Syracuse), pch = 19, cex = 0.6, add = T)
 ```
 
-::: {style="text-align: justify"}
-Las relaciones entre *n* observaciones vecinas (regiones) son representadas por un objeto de clase *nb*. Estos objetos son una lista de longitud *n* con el índice de la región y un vector de enteros con los vecinos de cada región (índices). Si una región (polígono) no tiene vecinos, el componente tendrá un 0.
+Los principales métodos de los objetos `nb` son `print()`, `summary()` y `plot()`, sin embargo, no son los únicos que existen.
 
-El objeto de clase *nb* (NY_nb) tiene incluidos métodos de `print`, `summary` y `plot` entre otros.
-
-Summary presenta una tabla de la distribución del número de enlaces y reporta asimetría y presencia de observaciones no vecinas.
-:::
+Tanto `print` como `summary` presentan el número de regiones, enlaces no nulos, porcentaje de pesos no nulos y promedio de enlaces entre regiones, sin embargo, `summary` presenta adicionalmente la distribución del número de enlaces del objeto `nb`, además de las regiones con menor y mayor frecuencia de enlaces dentro del objeto.
 
 ```{r}
 summary(Sy0_nb)
 ```
 
+Adicionalmente, el método `summary` también reporta la presencia o no de asimetría en el objeto `nb`
+
 > La asimetria está presente cuando *i* es un vecino de *j*, pero *j* no es un vecino de *i*.
 
-::: {style="text-align: justify"}
-El resultados de la función `summary` brinda información acerca de:
+:::{style='text-align: justify'}
+El resultados del método `summary` brinda la siguiente información:
 
 -   El número de regiones (polígonos) en la base de datos: 63
 -   El número de relaciones diferentes de 0: 346\
@@ -82,14 +87,14 @@ El resultados de la función `summary` brinda información acerca de:
 Se observa también la distribución de las relaciones que indican que el número máximo de vecinos que se encontraron fueron 9 y estuvieron con respecto a un poligono, 17 de las 63 regiones presentes tienen 6 uniones, etc.
 :::
 
+La función `card` permite obtener de forma rápida el número de vecinos de cada región.
+
 ```{r}
 card(Sy0_nb)
 ```
 
-::: {style="text-align: justify"}
-La función `card` permite obtener de forma rápida el número de vecinos de cada región.
-
-Se crearán objetos de lista de vecinos para uso posterior en el documento, para esto se utiliza la función `knearneigh` para obtener el índice de los puntos de *k* vecinos cercanos, esta función recibe como parametro de ingreso la lista de coordenadas de los puntos y un valor *k* que indica el número de puntos vecinos cercanos que se desean retornar. El resultado de la operación anterior se ingresa a la función `knn2nb` para convertir el objeto resultante en una lista de vecinos de la clase *nb*.
+:::{style='text-align: justify'}
+Se crearán objetos de lista de vecinos para uso posterior en el documento, para esto se utiliza la función `knearneigh` para obtener el índice de los puntos de $k$ vecinos cercanos, esta función recibe como parametro de ingreso la lista de coordenadas de los puntos y un valor $k$ que indica el número de puntos vecinos cercanos que se desean retornar. El resultado de la operación anterior se ingresa a la función `knn2nb` para convertir el objeto resultante en una lista de vecinos de la clase `nb`.
 :::
 
 ```{r}
@@ -107,18 +112,22 @@ Posteriormente se utiliza la función `dnearneigh` para obtener la lista de obje
 
 ```{r}
 dsts <- unlist(nbdists(Sy8_nb, coords))
-Sy11_nb <- dnearneigh(x = coords, d1 = 0, d2 = 0.75*max(dsts))
+Sy11_nb <- dnearneigh(x = coords, d1 = 0, d2 = 0.75 * max(dsts))
 Sy11_nb
 ```
 
 Como resultado, se observa que existen 8 regiones que no poseen vecinos (1, 10, 20...).
 
-# Objetos espaciales ponderados
+## Objetos espaciales ponderados
 
-::: {style="text-align: justify"}
+La literatura respecto a los pesos espaciales es muy pequeña, lo cual resulta sorprendente teniendo en cuenta la gran importancia que tienen los pesos espaciales al momento de medir y modelar dependencia espacial para datos en área.
+
+:::{style='text-align: justify'}
 Los pesos espaciales se pueden ver como una lista de pesos indexados por una lista de vecinos, donde el peso de la relación entre *i* e *j* es el k-ésimo elemento del i-ésimo componente de la lista de pesos.
 
-La función `nb2listw` toma un objeto de lista de vecinos (nb) y lo convierte en un objeto de pesos. La conversión por defecto es *W*, donde los pesos varian entre la unidad dividido por el más largo y el más pequeño número de vecinos y la suma de los pesos para cada entidad de área es la unidad.
+Una vez definida la lista de vecinos espaciales, el próximo paso es asignar pesos espaciales a cada uno de los enlaces entre regiones. En caso de conocer características importante del proceso espacial que se este tratando, dicha información puede ser útil al momento de asignarle pesos a los enlaces, de lo contrario es mejor evitarlo para evitar problemas por mala especificación del mismo.
+
+La función `nb2listw` toma un objeto de lista de vecinos (`nb`) y lo convierte en un objeto de pesos. La conversión por defecto es *W*, donde los pesos varían entre la unidad dividido por el más largo y el más pequeño número de vecinos y la suma de los pesos para cada entidad de área es la unidad.
 :::
 
 ```{r}
@@ -126,24 +135,71 @@ Sy0_lw_w <- nb2listw(neighbours = Sy0_nb)
 Sy0_lw_w
 ```
 
-::: {style="text-align: justify"}
-Otro tipo de conversión se obtiene al configurar *style = B*, con lo cual se obtiene un peso de 1 por cada relación vecina, pero en este caso, la suma de los pesos para áreas difieren de acuerdo al número de vecinos que las áreas tengan.
+:::{style='text-align: justify'}
+Otro tipo de conversión se obtiene al configurar *style = B*, con lo cual se obtiene un peso de 1 por cada relación vecina y 0 en otro caso, pero en esta situación, la suma de los pesos para áreas difieren de acuerdo al número de vecinos que las áreas tengan.
 :::
 
 > Se recomienda utilizar pesos binarios cuando se tiene poco conocimiento acerca del proceso que se está estudiando.
 
+El argumento *glist* puede ser usado para asignar manualmente los pesos a cada enlace entre regiones del objeto `nb`; como se mencionó previamente, esto puede ser útil en situaciones donde se tiene información respecto a la posible relaciones que pueden existir entre dos regiones lo cual podría ayudar a obtener mejores resultados. A continuación se presenta un ejemplo suponiendo que los pesos obedecen a la regla IDW binaria (inverso de las distancias entre regiones)
+
+```{r}
+dsts <- nbdists(Sy0_nb, coords)
+idw <- lapply(dsts, function(x) 1 / (x / 1000))
+Sy0_lw_idwB <- nb2listw(Sy0_nb, glist = idw, style = "B")
+summary(unlist(Sy0_lw_idwB$weights))
+summary(sapply(Sy0_lw_idwB$weights, sum))
+```
+
+
+A continuación se muestran los 3 tipos de pesos espaciales considerados
+
+```{r}
+Sy0_lw_B <- nb2listw(Sy0_nb, style = "B")
+
+pal <- brewer.pal(9, "Reds")
+oopar <- par(mfrow = c(1, 3), mar = c(1, 1, 3, 1) + 0.1)
+z <- t(listw2mat(Sy0_lw_w))
+brks <- c(0, 0.1, 0.143, 0.167, 0.2, 0.5, 1)
+nbr3 <- length(brks) - 3
+image(1:63, 1:63, z[, ncol(z):1],
+  breaks = brks,
+  col = pal[c(1, (9 - nbr3):9)],
+  main = "W style", axes = FALSE
+)
+box()
+z <- t(listw2mat(Sy0_lw_B))
+image(1:63, 1:63, z[, ncol(z):1],
+  col = pal[c(1, 9)], main = "B style",
+  axes = FALSE
+)
+box()
+z <- t(listw2mat(Sy0_lw_idwB))
+brks <- c(0, 0.35, 0.73, 0.93, 1.2, 2.6)
+nbr3 <- length(brks) - 3
+image(1:63, 1:63, z[, ncol(z):1],
+  breaks = brks,
+  col = pal[c(1, (9 - nbr3):9)],
+  main = "IDW B style", axes = FALSE
+)
+box()
+par(oopar)
+```
+
+El último argumento a considerar en la función `nb2listw()` es *zero.policy*. Cuando existen regiones sin vecinos es necesario especificar el argumento `zero.policy = T` para que no arroje error, esto debido a que por defecto la función `nb2listw()` asume que cada región tiene al menos un vecino.
+
 ```{r}
 try(
   expr = {
-    nb2listw(neighbours = Sy11_nb, style = 'B', zero.policy = F)
+    nb2listw(neighbours = Sy11_nb, style = "B", zero.policy = F)
   }
 )
 ```
 
-Cuando existen regiones sin vecinos es necesario especificar el argumento `zero.policy = T` para que no arroje error.
+Luego de especificar como verdadero dicho argumento, se obtiene el resultado sin fallas computacionales
 
 ```{r}
-Sy0_lw_D1 <- nb2listw(neighbours = Sy11_nb, style = 'B', zero.policy = T)
+Sy0_lw_D1 <- nb2listw(neighbours = Sy11_nb, style = "B", zero.policy = T)
 print(Sy0_lw_D1, zero.policy = T)
 ```
 
@@ -270,26 +326,33 @@ El gráfico de dispersión de Moran por convención posiciona la variable de int
 :::
 
 ```{r message=F, include=F}
-moran_plot <- moran.plot(ny$Cases, listw = nb2listw(NY_nb, style = 'C'))
+moran_plot <- moran.plot(ny$Cases, listw = nb2listw(NY_nb, style = "C"))
 ```
 
 ```{r message=F, warning=F}
-(ggplot(moran_plot, aes(x, wx))+
-    geom_point(aes(shape = is_inf, color = is_inf), size = 0.75) +
-    scale_color_manual(values = c("black", "red")) +
-    geom_hline(yintercept = moran_plot$wx %>% mean(), 
-               linetype = "dashed", alpha = 0.5) +
-    geom_vline(xintercept = moran_plot$x %>% mean(), 
-               linetype = "dashed", alpha = 0.5) +
-    geom_text(aes(x, wx, label = labels), 
-              data = filter(moran_plot, is_inf),
-                size = 2.5) +
-    geom_smooth(method = "lm", se = F, size = .6, col = "black") +
-    labs(x = "Cases", y = "Spatial lagged cases", 
-         title = "Moran Scatterplot", 
-         shape = "Significativo", color = "Significativo") +
-    theme_bw() +
-    theme(plot.title = element_text(hjust = 0.5))) %>% 
+(ggplot(moran_plot, aes(x, wx)) +
+  geom_point(aes(shape = is_inf, color = is_inf), size = 0.75) +
+  scale_color_manual(values = c("black", "red")) +
+  geom_hline(
+    yintercept = moran_plot$wx %>% mean(),
+    linetype = "dashed", alpha = 0.5
+  ) +
+  geom_vline(
+    xintercept = moran_plot$x %>% mean(),
+    linetype = "dashed", alpha = 0.5
+  ) +
+  geom_text(aes(x, wx, label = labels),
+    data = filter(moran_plot, is_inf),
+    size = 2.5
+  ) +
+  geom_smooth(method = "lm", se = F, size = .6, col = "black") +
+  labs(
+    x = "Cases", y = "Spatial lagged cases",
+    title = "Moran Scatterplot",
+    shape = "Significativo", color = "Significativo"
+  ) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5))) %>%
   plotly::ggplotly()
 ```
 
@@ -300,46 +363,58 @@ Al igual que en el caso de la estadística global, se puede comprobar la diverge
 :::
 
 ```{r, fig.height=7, fig.width=7, fig.align='center'}
-local <- as.data.frame(localmoran(ny$Cases, 
-                                  listw = nb2listw(NY_nb, style = "C")))
+local <- as.data.frame(localmoran(ny$Cases,
+  listw = nb2listw(NY_nb, style = "C")
+))
 local2 <- as.data.frame(localmoran.sad(lm(Cases ~ 1, ny),
-                                       nb = NY_nb, style = "C"))
+  nb = NY_nb, style = "C"
+))
 local3 <- as.data.frame(localmoran.exact(lm(Cases ~ 1, ny), nb = NY_nb, style = "C"))
 
-ny%>%
-  select(Cases)%>%
-  mutate(p_value = moran_plot$is_inf,
-         rezago = lag.listw(nb2listw(NY_nb, style = "B"), Cases),
-         cuadrante = case_when(
-           (Cases > mean(Cases)) & (rezago > mean(rezago)) &
-             (p_value == T) ~ 'High-High',
-           (Cases <= mean(Cases)) & (rezago <= mean(rezago)) &
-             (p_value == T) ~ 'Low-Low',
-           (Cases > mean(Cases)) & (rezago <= mean(rezago)) &
-             (p_value == T) ~ 'High-Low',
-           (Cases <= mean(Cases)) & (rezago > mean(rezago)) &
-             (p_value == T) ~ 'Low-High',
-           TRUE ~'NS'
-         ),
-         index = moran_plot$labels) -> resultados
+ny %>%
+  select(Cases) %>%
+  mutate(
+    p_value = moran_plot$is_inf,
+    rezago = lag.listw(nb2listw(NY_nb, style = "B"), Cases),
+    cuadrante = case_when(
+      (Cases > mean(Cases)) & (rezago > mean(rezago)) &
+        (p_value == T) ~ "High-High",
+      (Cases <= mean(Cases)) & (rezago <= mean(rezago)) &
+        (p_value == T) ~ "Low-Low",
+      (Cases > mean(Cases)) & (rezago <= mean(rezago)) &
+        (p_value == T) ~ "High-Low",
+      (Cases <= mean(Cases)) & (rezago > mean(rezago)) &
+        (p_value == T) ~ "Low-High",
+      TRUE ~ "NS"
+    ),
+    index = moran_plot$labels
+  ) -> resultados
 
 
-resultados_coords <- filter(resultados, p_value == T) %>% 
-  mutate(x = (st_centroid(resultados$geometry) %>% st_coordinates())[1],
-         y = (st_centroid(resultados$geometry) %>% st_coordinates())[2])
+resultados_coords <- filter(resultados, p_value == T) %>%
+  mutate(
+    x = (st_centroid(resultados$geometry) %>% st_coordinates())[1],
+    y = (st_centroid(resultados$geometry) %>% st_coordinates())[2]
+  )
 
-(ggplot(resultados)+
-  geom_sf(aes(fill = cuadrante), alpha = 0.8)+
-  scale_fill_manual(values = viridisLite::viridis(5))+
-  labs(title = 'Lugares con influencia de Leucemia \n',
-       x = 'Longitud', y = 'Latitud')+
-  geom_sf_text(data = resultados_coords,
-            mapping = aes(x, y, label = index), 
-            color = "white") +
+(ggplot(resultados) +
+  geom_sf(aes(fill = cuadrante), alpha = 0.8) +
+  scale_fill_manual(values = viridisLite::viridis(5)) +
+  labs(
+    title = "Lugares con influencia de Leucemia \n",
+    x = "Longitud", y = "Latitud"
+  ) +
+  geom_sf_text(
+    data = resultados_coords,
+    mapping = aes(x, y, label = index),
+    color = "white"
+  ) +
   theme_bw() +
-  theme(plot.title  = element_text(size = 14, face = 'bold', hjust = 0.5),
-        axis.text = element_blank(),
-        axis.ticks = element_blank())) %>%
+  theme(
+    plot.title = element_text(size = 14, face = "bold", hjust = 0.5),
+    axis.text = element_blank(),
+    axis.ticks = element_blank()
+  )) %>%
   plotly::ggplotly()
 ```
 
@@ -349,35 +424,49 @@ Se puede calcular una evaluación de riesgo constante asumiendo una distribució
 
 ```{r, fig.width=14, fig.height=9}
 ny %>%
-  transmute(p_afectada = sum(Cases)/sum(POP8)*POP8,
-            casos_std = (Cases - p_afectada)/sqrt(p_afectada),
-            rezago = stats::lag(nb2listw(NY_nb, style = 'C'), casos_std),
-            indice_riesgo = casos_std * rezago,
-            indice = local$Ii) -> riesgo
+  transmute(
+    p_afectada = sum(Cases) / sum(POP8) * POP8,
+    casos_std = (Cases - p_afectada) / sqrt(p_afectada),
+    rezago = stats::lag(nb2listw(NY_nb, style = "C"), casos_std),
+    indice_riesgo = casos_std * rezago,
+    indice = local$Ii
+  ) -> riesgo
 
-m_riesgo <- ggplot(riesgo)+
-  geom_sf(aes(fill = indice_riesgo))+
-  labs(title = 'Mapa de riesgo Constante')+
-  scale_fill_gradientn(colours = viridisLite::viridis(20, begin = 0.17,
-                                                      end = 0.98),
-                       limits = c(-2.2, 3.7)) +
-  theme_bw()+
-  theme(plot.title  = element_text(size = 14, face = 'bold', hjust = 0.5),
-        axis.text = element_blank(),
-        axis.ticks = element_blank())
-
-m_actual <- ggplot(riesgo)+
-  geom_sf(aes(fill = indice))+
-  labs(title = 'Mapa de riesgo Standard')+
-  scale_fill_gradientn(colours = viridisLite::viridis(20, begin = 0.17,
-                                                      end = 0.98),
-                       limits = c(-2.2, 3.7)) +
+m_riesgo <- ggplot(riesgo) +
+  geom_sf(aes(fill = indice_riesgo)) +
+  labs(title = "Mapa de riesgo Constante") +
+  scale_fill_gradientn(
+    colours = viridisLite::viridis(20,
+      begin = 0.17,
+      end = 0.98
+    ),
+    limits = c(-2.2, 3.7)
+  ) +
   theme_bw() +
-  theme(plot.title  = element_text(size = 14, face = 'bold', hjust = 0.5),
-        axis.text = element_blank(),
-        axis.ticks = element_blank())
+  theme(
+    plot.title = element_text(size = 14, face = "bold", hjust = 0.5),
+    axis.text = element_blank(),
+    axis.ticks = element_blank()
+  )
 
-cowplot::plot_grid(m_actual, m_riesgo, align = 'hv', ncol = 2)
+m_actual <- ggplot(riesgo) +
+  geom_sf(aes(fill = indice)) +
+  labs(title = "Mapa de riesgo Standard") +
+  scale_fill_gradientn(
+    colours = viridisLite::viridis(20,
+      begin = 0.17,
+      end = 0.98
+    ),
+    limits = c(-2.2, 3.7)
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(size = 14, face = "bold", hjust = 0.5),
+    axis.text = element_blank(),
+    axis.ticks = element_blank()
+  )
+
+cowplot::plot_grid(m_actual, m_riesgo, align = "hv", ncol = 2)
 ```
 
 ```{r}
@@ -396,55 +485,72 @@ cowplot::plot_grid(m_actual, m_riesgo, align = 'hv', ncol = 2)
 # diff <- ifelse(diff > 0, diff, 0)
 # pval <- punif((diff + 1)/(nsim + 1))
 
-monte_carlo_sim <- function(nsim, prop, Ii, nb){
+monte_carlo_sim <- function(nsim, prop, Ii, nb) {
   N <- length(prop)
   sims <- matrix(0, ncol = nsim, nrow = N)
   for (i in 1:nsim) {
     y <- rpois(N, lambda = prop)
-    z <- (y - prop)/sqrt(prop)
+    z <- (y - prop) / sqrt(prop)
     rezago <- stats::lag(nb2listw(nb, style = "C"), z)
     sims[, i] <- z * rezago
   }
   xrank <- apply(cbind(Ii, sims), 1, function(x) rank(x)[1])
   diff <- nsim - xrank
   diff <- ifelse(diff > 0, diff, 0)
-  pval <- punif((diff + 1)/(nsim + 1))
+  pval <- punif((diff + 1) / (nsim + 1))
   return(pval)
 }
 
-mc_sim <- riesgo %>% 
-  select(p_afectada, indice_riesgo) %>% 
-  mutate(pvalue_cr = monte_carlo_sim(999, p_afectada,
-                                  indice_riesgo, NY_nb), 
-         pvalue_sad = local2$`Pr. (Sad)`,
-         pvalue_exact = local3$`Pr. (exact)`,
-         pvalue_rand = local$`Pr(z != E(Ii))`,
-         pvalue_norm = local2$`Pr. (N)`) %>% 
-  pivot_longer(cols = c("pvalue_cr", "pvalue_sad",
-                        "pvalue_exact", "pvalue_rand", "pvalue_norm"),
-               names_to = "type", values_to = "p_value") %>% 
-  mutate(discrete = cut(p_value, breaks = c(0, 0.05, 0.1,
-                               0.9, 0.95, 1, max(p_value)),
-                        include.lowest = T))
+mc_sim <- riesgo %>%
+  select(p_afectada, indice_riesgo) %>%
+  mutate(
+    pvalue_cr = monte_carlo_sim(
+      999, p_afectada,
+      indice_riesgo, NY_nb
+    ),
+    pvalue_sad = local2$`Pr. (Sad)`,
+    pvalue_exact = local3$`Pr. (exact)`,
+    pvalue_rand = local$`Pr(z != E(Ii))`,
+    pvalue_norm = local2$`Pr. (N)`
+  ) %>%
+  pivot_longer(
+    cols = c(
+      "pvalue_cr", "pvalue_sad",
+      "pvalue_exact", "pvalue_rand", "pvalue_norm"
+    ),
+    names_to = "type", values_to = "p_value"
+  ) %>%
+  mutate(discrete = cut(p_value,
+    breaks = c(
+      0, 0.05, 0.1,
+      0.9, 0.95, 1, max(p_value)
+    ),
+    include.lowest = T
+  ))
 ```
 
 ```{r plots-dep-valp, fig.width=7, fig.height=7}
-aux_labs <- c("pvalue_cr" = "Riesgo constante",
-              "pvalue_exact" = "Exacto",
-              "pvalue_norm" ="Normal",
-              "pvalue_rand" ="Aleatorio",
-              "pvalue_sad" ="Saddlepoint")
+aux_labs <- c(
+  "pvalue_cr" = "Riesgo constante",
+  "pvalue_exact" = "Exacto",
+  "pvalue_norm" = "Normal",
+  "pvalue_rand" = "Aleatorio",
+  "pvalue_sad" = "Saddlepoint"
+)
 
 ggplot(mc_sim) +
   geom_sf() +
   geom_sf(aes(fill = discrete),
-          data = filter(mc_sim, p_value < 0.1 | p_value > 0.9 & 
-                          p_value < 1)) +
+    data = filter(mc_sim, p_value < 0.1 | p_value > 0.9 &
+      p_value < 1)
+  ) +
   facet_wrap(~type, labeller = labeller(type = aux_labs)) +
-  labs(title = '')+
-  scale_fill_manual(values = viridisLite::viridis(5), name = 'P-value') + 
+  labs(title = "") +
+  scale_fill_manual(values = viridisLite::viridis(5), name = "P-value") +
   theme_bw() +
-  theme(plot.title  = element_text(size = 14, face = 'bold', hjust = 0.5),
-        axis.text = element_blank(),
-        axis.ticks = element_blank())
+  theme(
+    plot.title = element_text(size = 14, face = "bold", hjust = 0.5),
+    axis.text = element_blank(),
+    axis.ticks = element_blank()
+  )
 ```
