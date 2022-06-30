@@ -19,13 +19,11 @@ library(spdep)
 
 # Modelación de datos en áreas
 
-## Introducción 
-
-
+## Introducción
 
 ### Dataset
 
-Se utilizará los datos de censo para 8 condados centrales del estado de New York 
+Se utilizará los datos de censo para 8 condados centrales del estado de New York
 
 ```{r message=FALSE, warning=FALSE}
 ny <- st_read('data/NY8_utm18.shp')
@@ -40,9 +38,9 @@ Crear los vecinos y pesos no es un proceso fácil y por lo tanto existen varias 
 
 ## Objetos vecinos
 
-Un archivo `gal` es una matriz de pesos o vecinos producida por el software GeoDa. 
+Un archivo `gal` es una matriz de pesos o vecinos producida por el software GeoDa.
 
-Las observaciones enlazadas (vecinas) son objetos de clase `nb` en el paquete `spdep`; dichos objetos son una lista de tamaño $n$ 
+Las observaciones enlazadas (vecinas) son objetos de clase `nb` en el paquete `spdep`; dichos objetos son una lista de tamaño $n$
 
 ```{r message=FALSE, warning=FALSE}
 NY_nb <- read.gal('data/NY_nb.gal', # read.gal carga el archivo de clase nb
@@ -52,20 +50,19 @@ Syracuse <- filter(ny, AREANAME == 'Syracuse city')
 Sy0_nb <- subset(NY_nb, ny$AREANAME == 'Syracuse city')
 ```
 
-Se realiza un subset del área de trabajo por temas de simplicidad. 
+Se realiza un subset del área de trabajo por temas de simplicidad.
 
 ```{r}
 plot(st_geometry(Syracuse), border = 'grey60', axes = T)
 plot(Sy0_nb, st_geometry(Syracuse), pch = 19, cex = 0.6, add = T)
 ```
 
-:::{style='text-align: justify'}
+::: {style="text-align: justify"}
 Las relaciones entre *n* observaciones vecinas (regiones) son representadas por un objeto de clase *nb*. Estos objetos son una lista de longitud *n* con el índice de la región y un vector de enteros con los vecinos de cada región (índices). Si una región (polígono) no tiene vecinos, el componente tendrá un 0.
 
 El objeto de clase *nb* (NY_nb) tiene incluidos métodos de `print`, `summary` y `plot` entre otros.
 
 Summary presenta una tabla de la distribución del número de enlaces y reporta asimetría y presencia de observaciones no vecinas.
-
 :::
 
 ```{r}
@@ -74,13 +71,13 @@ summary(Sy0_nb)
 
 > La asimetria está presente cuando *i* es un vecino de *j*, pero *j* no es un vecino de *i*.
 
-:::{style='text-align: justify'}
-El resultados de la función `summary` brinda información acerca de: 
+::: {style="text-align: justify"}
+El resultados de la función `summary` brinda información acerca de:
 
-- El número de regiones (polígonos) en la base de datos: 63
-- El número de relaciones diferentes de 0: 346  
-- El porcentaje de pesos distinto de 0: 8.717561
-- El número promedio de relaciones entre los polígonos: 5.492063
+-   El número de regiones (polígonos) en la base de datos: 63
+-   El número de relaciones diferentes de 0: 346\
+-   El porcentaje de pesos distinto de 0: 8.717561
+-   El número promedio de relaciones entre los polígonos: 5.492063
 
 Se observa también la distribución de las relaciones que indican que el número máximo de vecinos que se encontraron fueron 9 y estuvieron con respecto a un poligono, 17 de las 63 regiones presentes tienen 6 uniones, etc.
 :::
@@ -89,8 +86,8 @@ Se observa también la distribución de las relaciones que indican que el númer
 card(Sy0_nb)
 ```
 
-:::{style='text-align: justify'}
-La función `card` permite obtener de forma rápida el número de vecinos de cada región. 
+::: {style="text-align: justify"}
+La función `card` permite obtener de forma rápida el número de vecinos de cada región.
 
 Se crearán objetos de lista de vecinos para uso posterior en el documento, para esto se utiliza la función `knearneigh` para obtener el índice de los puntos de *k* vecinos cercanos, esta función recibe como parametro de ingreso la lista de coordenadas de los puntos y un valor *k* que indica el número de puntos vecinos cercanos que se desean retornar. El resultado de la operación anterior se ingresa a la función `knn2nb` para convertir el objeto resultante en una lista de vecinos de la clase *nb*.
 :::
@@ -102,10 +99,10 @@ Sy8_nb <- knn2nb(knearneigh(coords, k = 1), row.names = ids)
 Sy8_nb
 ```
 
-:::{style='text-align: justify'}
+::: {style="text-align: justify"}
 la función `nbdists` obtiene las distancias entre los puntos de los objectos vecinos calculados en el paso anterior. Esto es util porque con ella se obtiene **la distancia minima necesaria para asegurar que todas las áreas tengan al menos un vecino**.
 
-Posteriormente se utiliza la función `dnearneigh` para obtener la lista de objetos vecinos (nb) que se encuentran a una determinada distancia (*d1*, *d2*). 
+Posteriormente se utiliza la función `dnearneigh` para obtener la lista de objetos vecinos (nb) que se encuentran a una determinada distancia (*d1*, *d2*).
 :::
 
 ```{r}
@@ -113,27 +110,27 @@ dsts <- unlist(nbdists(Sy8_nb, coords))
 Sy11_nb <- dnearneigh(x = coords, d1 = 0, d2 = 0.75*max(dsts))
 Sy11_nb
 ```
+
 Como resultado, se observa que existen 8 regiones que no poseen vecinos (1, 10, 20...).
 
 # Objetos espaciales ponderados
 
-
-:::{style='text-align: justify'}
+::: {style="text-align: justify"}
 Los pesos espaciales se pueden ver como una lista de pesos indexados por una lista de vecinos, donde el peso de la relación entre *i* e *j* es el k-ésimo elemento del i-ésimo componente de la lista de pesos.
 
 La función `nb2listw` toma un objeto de lista de vecinos (nb) y lo convierte en un objeto de pesos. La conversión por defecto es *W*, donde los pesos varian entre la unidad dividido por el más largo y el más pequeño número de vecinos y la suma de los pesos para cada entidad de área es la unidad.
 :::
+
 ```{r}
 Sy0_lw_w <- nb2listw(neighbours = Sy0_nb)
 Sy0_lw_w
 ```
 
-:::{style='text-align: justify'}
+::: {style="text-align: justify"}
 Otro tipo de conversión se obtiene al configurar *style = B*, con lo cual se obtiene un peso de 1 por cada relación vecina, pero en este caso, la suma de los pesos para áreas difieren de acuerdo al número de vecinos que las áreas tengan.
 :::
 
 > Se recomienda utilizar pesos binarios cuando se tiene poco conocimiento acerca del proceso que se está estudiando.
-
 
 ```{r}
 try(
@@ -152,55 +149,48 @@ print(Sy0_lw_D1, zero.policy = T)
 
 # Evaluando la autocorrelación espacial
 
+::: {style="text-align: justify"}
+Hay dos tipos de test de autocorrelación espacial que se aplican a este tipo de datos:
 
-:::{style='text-align: justify'}
-Hay dos tipos de test de autocorrelación espacial que se aplican a este tipo de datos: 
-
-- Test globales: Se utilizan para verificar si existe autocorrelación espacial entre dos o más regiones en algún lugar del área de estudio (no se especifica donde). 
-- Test locales: Detectan clusters de vecinos con observaciones muy diferentes de los vecinos en general. Encuentran hotspots.
+-   Test globales: Se utilizan para verificar si existe autocorrelación espacial entre dos o más regiones en algún lugar del área de estudio (no se especifica donde).
+-   Test locales: Detectan clusters de vecinos con observaciones muy diferentes de los vecinos en general. Encuentran hotspots.
 :::
 
 ## Test globales
 
 ### Test de Moran I
 
-
-:::{style='text-align: justify'}
-Es la forma más común de abordar la autocorrelación espacial. Se calcula como la razón del producto de la variable de interés y su rezago espacial, con el producto cruzado de la variable de interés y ajustada por los pesos espaciales usados. 
+::: {style="text-align: justify"}
+Es la forma más común de abordar la autocorrelación espacial. Se calcula como la razón del producto de la variable de interés y su rezago espacial, con el producto cruzado de la variable de interés y ajustada por los pesos espaciales usados.
 :::
 
-$$I = \frac{n}{\sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij}}\ \frac{\sum_{i=1}^{n} \sum_{j=1}^{n} (y_i - \bar{y})(y_j - \bar{y})}{\sum_{i=1}^{n} (y_i - \bar{y})^2}$$
-donde: 
+$$I = \frac{n}{\sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij}}\ \frac{\sum_{i=1}^{n} \sum_{j=1}^{n} (y_i - \bar{y})(y_j - \bar{y})}{\sum_{i=1}^{n} (y_i - \bar{y})^2}$$ donde:
 
-- $y_i$: Es la $ith$ observación
-- $\bar{y}$: Es la media de la variable de interés
-- $w_{ij}$: Es la ponderación espacial de las relaciones entre *i* e *j*. 
+-   $y_i$: Es la $ith$ observación
+-   $\bar{y}$: Es la media de la variable de interés
+-   $w_{ij}$: Es la ponderación espacial de las relaciones entre *i* e *j*.
 
-
-:::{style='text-align: justify'}
-Centrarse en la media es equivale a afirmar que el modelo correcto tiene una media constante, y que cualquier patrón restante después del centrado es causado por las relaciones espaciales codificadas en los pesos espaciales.
+::: {style="text-align: justify"}
+Centrarse en la media es equivalente a afirmar que el modelo correcto tiene una media constante, y que cualquier patrón restante después del centrado es causado por las relaciones espaciales codificadas en los pesos espaciales.
 :::
 
 Para esto, se calcula la esperanza como:
 
 $$E(I) = \frac{-1}{n-1}$$
 
-
-:::{style='text-align: justify'}
+::: {style="text-align: justify"}
 El siguiente paso es tomar el valor observado y restarlo al valor esperado analíticamente (I - E(I)) para finalmente dividirlo por la raíz cuadrada de la varianza analítica. El resultado es comparado con la distribución normal para encontrar el valor de probabilidad del estadístico observado bajo la **hipótesis nula de ausencia de dependencia espacial para los pesos espaciales elegidos**. Los resultados pueden depender de la elección de las ponderaciones, de los vecindarios y de que los supuestos sean cumplidos.
 :::
 
-$$H_0: Ausencia \ de \ dependencia \ espacial$$
-$$H_1: El \ estadístico \ observado \ es \ significativamente \ más \ grande \ que \ el \ valor \ esperado$$
+$$H_0: Ausencia \ de \ dependencia \ espacial$$ $$H_1: El \ estadístico \ observado \ es \ significativamente \ más \ grande \ que \ el \ valor \ esperado$$
 
-El dominio del I de Moran es [-1, 1]. Se evidencia autocorrelación espacial positiva cuando I > 0. Esto quiere decir que las unidades de análisis vecinas tienden a ser similares. 
+El dominio del I de Moran es [-1, 1]. Se evidencia autocorrelación espacial positiva cuando I \> 0. Esto quiere decir que las unidades de análisis vecinas tienden a ser similares.
 
 ```{r}
 moran.test(x = ny$Cases, listw = nb2listw(NY_nb))
 ```
 
-
-:::{style='text-align: justify'}
+::: {style="text-align: justify"}
 Por defecto, el `moran.test` usa el supuesto de aleatorización lo que difiere del supuesto de normalidad más simple al introducir un término de corrección basado en la curtosis de la variable de interés. Cuando la curtosis corresponde a la de una variable con distribución normal, las dos suposiciones arrojan la misma varianza, pero a medida que la variable se aleja de la normalidad, la suposición de aleatorización compensa aumentando la varianza y disminuyendo la desviación estándar.
 :::
 
@@ -208,7 +198,7 @@ Por defecto, el `moran.test` usa el supuesto de aleatorización lo que difiere d
 moran.test(x = ny$Cases, listw = nb2listw(NY_nb), randomisation = F)
 ```
 
-En este caso, se observa que la varianza no cambia, por lo tanto, el supuesto de normalidad se cumple. 
+En este caso, se observa que la varianza no cambia, por lo tanto, el supuesto de normalidad se cumple.
 
 Es posible también realizar test de Monte Carlo para evaluar la hipótesis de dependencia espacial con el test de Moran I.
 
@@ -218,17 +208,70 @@ moran.mc(x = ny$Cases, listw = nb2listw(NY_nb), nsim = 999)
 
 ## Test locales
 
-
-:::{style='text-align: justify'}
+::: {style="text-aling: justify"}
 Conociendo las medidas globales de asociación espacial, es posible descomponer estas medidas con el fin de construir test locales que buscan detectar clusters (Observaciones con vecinos muy similares) y hotspots (Observaciones con vecinos muy diferentes), además se pueden utilizar para conocer el impacto de los estadísticos individuales en sus contrapartes globales.
+:::
 
-El gráfico de dispersión de Moran por convención posiciona la variable de interés en el eje x y los valores de rezago espacial (La suma de valores de los vecinos espacialmente ponderada) en el eje y. El índice global de Moran es una relación lineal entre estos valores y es dibujado como la pendiente. 
+### Indicadores locales de asociación espacial (LISA)
+
+**(Anselin, 1995)**
+
+Cualquier estadístico que cumplas las siguientes condiciones:
+
+-   El LISA para cada observación da una indicación del grado de agrupación espacial significativa de valores similares en torno a esa observación.
+-   La suma de los LISA para todas las observaciones es proporcional al indicador global de asociación espacial.
+
+> Comprobar si la contribución local a la agrupación en torno a la observación *i* es significativamente diferente de 0, identificando localidades donde existe un grado significativo de agrupación espacial.
+
+Partiendo del índice global de Moran:
+
+$$
+I = \frac{n}{\sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij}}\ \frac{\sum_{i=1}^{n} \sum_{j=1}^{n} (y_i - \bar{y})(y_j - \bar{y})}{\sum_{i=1}^{n} (y_i - \bar{y})^2}
+$$
+
+Se reescribe le ecuación en:
+
+$$
+I = n \left[ \sum_k \sum_j w_{kj} \right]^{-1}\left[ \sum_k (y_k-\bar{y})^2 \right]^{-1} \sum_i I_i
+$$
+
+donde:
+
+$$
+I_i = (y_i-\bar{y}) \sum_j w_{ij} (y_j - \bar{y})
+$$
+
+Como:
+
+$n \left[ \sum_k \sum_j w_{kj} \right]^{-1}\left[ \sum_k (y_k-\bar{y})^2 \right]^{-1}$ no depende de i, entonces para un conjunto dado de $z_i$ esta expresión se comporta como una constante.
+
+$$
+I = cte \cdot \sum_i I_i
+$$
+
+Reemplazando $q_i = y_i - \bar{y}$ se obtiene la expresión original propuesta por Anselin, 1995.
+
+$$
+I = z_i \sum_j w_{ij}z_j
+$$
+
+> $I_i$ es el producto de $z_i$ y la media de los valores $z_j$ de los vecinos del polígono $i$
+
+-   Si tanto $z_i$ como el valor medio de los $z_j$ vecinos están por encima de la media, la cantidad será grande, indicando un cluster de valores por encima de la media y centrado en el polígono $i$.
+-   Si los signos de $z_i$ y $\sum_j w_{ij}z_j$ son diferentes e $I_i$ es ampliamente negativo, entonces, esto puede ser indicativo de repulsión local (outliers).
+-   Si la magnitud de $I_i$ no es particularmente grande, esto sugiere que hay poca evidencia para concluir sobre la existencia de clusters o repulsión.
+
+Finalmente, para cada $I_i$ se puede aplicar un test de significancia estadística con una hipótesis nula de ausencia de asociación espacial.
+
+![Cuadrantes de asociación espacial. Modificado de Siabato et al., 2018](grafico.png)
+
+::: {style="text-align: justify"}
+El gráfico de dispersión de Moran por convención posiciona la variable de interés en el eje x y los valores de rezago espacial (La suma de valores de los vecinos espacialmente ponderada) en el eje y. El índice global de Moran es una relación lineal entre estos valores y es dibujado como la pendiente.
 :::
 
 ```{r message=F, include=F}
 moran_plot <- moran.plot(ny$Cases, listw = nb2listw(NY_nb, style = 'C'))
 ```
-
 
 ```{r message=F, warning=F}
 (ggplot(moran_plot, aes(x, wx))+
@@ -250,16 +293,9 @@ moran_plot <- moran.plot(ny$Cases, listw = nb2listw(NY_nb, style = 'C'))
   plotly::ggplotly()
 ```
 
-:::{style='text-align: justify'}
-El gráfico se divide en 4 cuadrantes. El cuadrante de la esquina superior derecha indica áreas que tienen un alta incidencia de casos de leucemia y están rodeadas por otras áreas que tienen nivel superior al promedio de casos (high-high). En la esquina inferior izquierda se encuentran áreas con baja incidencia de casos de leucemia rodeadas por áreas con incidencia de leucemia por debajo del promedio (low-low). Las áreas high-high son conocidas como hotspots y las áreas low-low como coldspots. En la diagonal opuesta se tienen valores atípicos espaciales, que indica que son áreas que están rodeadas por vecinos muy diferentes a ellos. 
+::: {style="text-align: justify"}
+El gráfico se divide en 4 cuadrantes. El cuadrante de la esquina superior derecha indica áreas que tienen un alta incidencia de casos de leucemia y están rodeadas por otras áreas que tienen nivel superior al promedio de casos (high-high). En la esquina inferior izquierda se encuentran áreas con baja incidencia de casos de leucemia rodeadas por áreas con incidencia de leucemia por debajo del promedio (low-low). Las áreas high-high son conocidas como hotspots y las áreas low-low como coldspots. En la diagonal opuesta se tienen valores atípicos espaciales, que indica que son áreas que están rodeadas por vecinos muy diferentes a ellos.
 
-Los valores locales del índice de Moran se construyen como los n componentes sumados para alcanzar el índice de Moran global. 
-:::
-
-$$I_i = \frac{(y_i - \bar{y}) \sum_{j=1}^n w_{ij}(y_j - \bar{y})}{\frac{\sum_{i = 1}^n (y_i - \bar{y})^2}{n}}$$
-
-
-:::{style='text-align: justify'}
 Al igual que en el caso de la estadística global, se puede comprobar la divergencia de los estadísticos locales de los valores esperados, bajo los supuestos de normalidad y aleatoriedad analíticamente y usando métodos como el de punto de silla y exacto.
 :::
 
@@ -307,8 +343,7 @@ resultados_coords <- filter(resultados, p_value == T) %>%
   plotly::ggplotly()
 ```
 
-
-:::{style='text-align: justify'}
+::: {style="text-align: justify"}
 Se puede calcular una evaluación de riesgo constante asumiendo una distribución Poisson con un valor de $\lambda$ igual a la probabilidad de ocurrencia de la enfermedad, se estandariza la variable tomando la propiedad de que tanto la media como la desviación estandar son iguales en esta distribución, se calculan los rezagos y se compara el indice de morán actual con el de riesgo constante.
 :::
 
@@ -344,7 +379,6 @@ m_actual <- ggplot(riesgo)+
 
 cowplot::plot_grid(m_actual, m_riesgo, align = 'hv', ncol = 2)
 ```
-
 
 ```{r}
 # set.seed(1234)
@@ -408,12 +442,9 @@ ggplot(mc_sim) +
                           p_value < 1)) +
   facet_wrap(~type, labeller = labeller(type = aux_labs)) +
   labs(title = '')+
-  scale_fill_manual(values = viridisLite::viridis(5)) + 
+  scale_fill_manual(values = viridisLite::viridis(5), name = 'P-value') + 
   theme_bw() +
   theme(plot.title  = element_text(size = 14, face = 'bold', hjust = 0.5),
         axis.text = element_blank(),
         axis.ticks = element_blank())
 ```
-
-
-
