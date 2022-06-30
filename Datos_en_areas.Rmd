@@ -124,9 +124,9 @@ Como resultado, se observa que existen 8 regiones que no poseen vecinos (1, 10, 
 La literatura respecto a los pesos espaciales es muy pequeña, lo cual resulta sorprendente teniendo en cuenta la gran importancia que tienen los pesos espaciales al momento de medir y modelar dependencia espacial para datos en área.
 
 :::{style='text-align: justify'}
-Los pesos espaciales se pueden ver como una lista de pesos indexados por una lista de vecinos, donde el peso de la relación entre *i* e *j* es el k-ésimo elemento del i-ésimo componente de la lista de pesos.
+Los pesos espaciales se pueden ver como una lista de pesos indexados por una lista de vecinos, donde el peso de la relación entre $i$ e $j$ es el $k$-ésimo elemento del $i$-ésimo componente de la lista de pesos.
 
-Una vez definida la lista de vecinos espaciales, el próximo paso es asignar pesos espaciales a cada uno de los enlaces entre regiones. En caso de conocer características importante del proceso espacial que se este tratando, dicha información puede ser útil al momento de asignarle pesos a los enlaces, de lo contrario es mejor evitarlo para evitar problemas por mala especificación del mismo.
+Una vez definida la lista de vecinos espaciales, el próximo paso es asignar pesos espaciales a cada uno de los enlaces entre regiones. En caso de conocer características importante del proceso espacial que se este tratando, dicha información puede ser útil al momento de asignarle pesos a los enlaces, de lo contrario es mejor evitarlo para evadir problemas de mala especificación del mismo.
 
 La función `nb2listw` toma un objeto de lista de vecinos (`nb`) y lo convierte en un objeto de pesos. La conversión por defecto es *W*, donde los pesos varían entre la unidad dividido por el más largo y el más pequeño número de vecinos y la suma de los pesos para cada entidad de área es la unidad.
 :::
@@ -141,7 +141,7 @@ Otro tipo de conversión se obtiene al configurar *style = B*, con lo cual se ob
 
 > Se recomienda utilizar pesos binarios cuando se tiene poco conocimiento acerca del proceso que se está estudiando.
 
-El argumento *glist* puede ser usado para asignar manualmente los pesos a cada enlace entre regiones del objeto `nb`; como se mencionó previamente, esto puede ser útil en situaciones donde se tiene información respecto a la posible relaciones que pueden existir entre dos regiones lo cual podría ayudar a obtener mejores resultados. A continuación se presenta un ejemplo suponiendo que los pesos obedecen a la regla IDW binaria (inverso de las distancias entre regiones)
+El argumento *glist* puede ser usado para asignar manualmente los pesos a cada enlace entre regiones del objeto `nb`; como se mencionó previamente, esto puede ser útil en situaciones donde se tiene información respecto a las posibles relaciones que pueden existir entre dos regiones, lo cual podría ayudar a obtener mejores resultados. A continuación se presenta un ejemplo suponiendo que los pesos obedecen a la regla IDW binaria (inverso de las distancias entre regiones)
 
 ```{r}
 dsts <- nbdists(Sy0_nb, coords)
@@ -152,7 +152,7 @@ summary(sapply(Sy0_lw_idwB$weights, sum))
 ```
 
 
-A continuación se muestran los 3 tipos de pesos espaciales considerados
+A continuación se presentan 3 tipos de pesos espaciales:
 
 ```{r}
 Sy0_lw_B <- nb2listw(Sy0_nb, style = "B")
