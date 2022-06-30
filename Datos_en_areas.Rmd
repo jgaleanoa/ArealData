@@ -8,6 +8,14 @@ output:
     theme: readable
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.align = "center", fig.pos = "H", warning = F)
+library(kableExtra)
+library(knitr)
+library(sf)
+library(tidyverse)
+```
+
 # Modelación de datos en áreas
 
 ## Introducción 
@@ -18,9 +26,6 @@ output:
 Se utilizará los datos de censo para 8 condados centrales del estado de New York 
 
 ```{r message=FALSE, warning=FALSE}
-library(sf)
-library(dplyr)
-
 ny <- st_read('data/NY8_utm18.shp')
 plot(st_geometry(ny), axes = T)
 ```
@@ -215,8 +220,29 @@ Conociendo las medidas globales de asociación espacial, es posible descomponer 
 El gráfico de dispersión de Moran por convención posiciona la variable de interés en el eje x y los valores de rezago espacial (La suma de valores de los vecinos espacialmente ponderada) en el eje y. El índice global de Moran es una relación lineal entre estos valores y es dibujado como la pendiente. 
 :::
 
-```{r}
-moran.plot(ny$Cases, listw = nb2listw(NY_nb, style = 'C'))
+```{r message=F, include=F}
+moran_plot <- moran.plot(ny$Cases, listw = nb2listw(NY_nb, style = 'C'))
+```
+
+
+```{r message=F, warning=F}
+(ggplot(moran_plot, aes(x, wx))+
+    geom_point(aes(shape = is_inf, color = is_inf), size = 0.75) +
+    scale_color_manual(values = c("black", "red")) +
+    geom_hline(yintercept = moran_plot$wx %>% mean(), 
+               linetype = "dashed", alpha = 0.5) +
+    geom_vline(xintercept = moran_plot$x %>% mean(), 
+               linetype = "dashed", alpha = 0.5) +
+    geom_text(aes(x, wx, label = labels), 
+              data = filter(moran_plot, is_inf),
+                size = 2.5) +
+    geom_smooth(method = "lm", se = F, size = .6, col = "black") +
+    labs(x = "Cases", y = "Spatial lagged cases", 
+         title = "Moran Scatterplot", 
+         shape = "Significativo", color = "Significativo") +
+    theme_bw() +
+    theme(plot.title = element_text(hjust = 0.5))) %>% 
+  plotly::ggplotly()
 ```
 
 :::{style='text-align: justify'}
@@ -233,30 +259,45 @@ Al igual que en el caso de la estadística global, se puede comprobar la diverge
 :::
 
 ```{r, fig.height=7, fig.width=7, fig.align='center'}
-library(ggplot2)
 local <- as.data.frame(localmoran(ny$Cases, listw = nb2listw(NY_nb, style = "C")))
 local2 <- as.data.frame(localmoran.sad(lm(Cases ~ 1, ny), nb = NY_nb, style = "C"))
 local3 <- as.data.frame(localmoran.exact(lm(Cases ~ 1, ny), nb = NY_nb, style = "C"))
 
 ny%>%
   select(Cases)%>%
-  mutate(p_value = local3$`Pr. (exact)`,
+  mutate(p_value = moran_plot$is_inf,
          rezago = lag.listw(nb2listw(NY_nb, style = "B"), Cases),
          cuadrante = case_when(
-           (Cases > mean(Cases)) & (rezago > mean(rezago)) & (p_value <= 0.05) ~ 'High-High',
-           (Cases <= mean(Cases)) & (rezago <= mean(rezago)) & (p_value <= 0.05) ~ 'Low-Low',
-           (Cases > mean(Cases)) & (rezago <= mean(rezago)) & (p_value <= 0.05) ~ 'High-Low',
-           (Cases <= mean(Cases)) & (rezago > mean(rezago)) & (p_value <= 0.05) ~ 'Low-High',
+           (Cases > mean(Cases)) & (rezago > mean(rezago)) &
+             (p_value == T) ~ 'High-High',
+           (Cases <= mean(Cases)) & (rezago <= mean(rezago)) &
+             (p_value == T) ~ 'Low-Low',
+           (Cases > mean(Cases)) & (rezago <= mean(rezago)) &
+             (p_value == T) ~ 'High-Low',
+           (Cases <= mean(Cases)) & (rezago > mean(rezago)) &
+             (p_value == T) ~ 'Low-High',
            TRUE ~'NS'
-         )) -> resultados
+         ),
+         index = moran_plot$labels) -> resultados
 
-ggplot(resultados)+
+
+resultados_coords <- filter(resultados, p_value == T) %>% 
+  mutate(x = (st_centroid(resultados$geometry) %>% st_coordinates())[1],
+         y = (st_centroid(resultados$geometry) %>% st_coordinates())[2])
+
+(ggplot(resultados)+
   geom_sf(aes(fill = cuadrante), alpha = 0.8)+
   scale_fill_manual(values = viridisLite::viridis(5))+
   labs(title = 'Lugares con influencia de Leucemia \n',
        x = 'Longitud', y = 'Latitud')+
-  theme_bw()+
-  theme(plot.title  = element_text(size = 14, face = 'bold', hjust = 0.5))
+  geom_sf_text(data = resultados_coords,
+            mapping = aes(x, y, label = index), 
+            color = "white") +
+  theme_bw() +
+  theme(plot.title  = element_text(size = 14, face = 'bold', hjust = 0.5),
+        axis.text = element_blank(),
+        axis.ticks = element_blank())) %>%
+  plotly::ggplotly()
 ```
 
 
@@ -279,7 +320,9 @@ m_riesgo <- ggplot(riesgo)+
                                                       end = 0.98),
                        limits = c(-2.2, 3.7)) +
   theme_bw()+
-  theme(plot.title  = element_text(size = 14, face = 'bold', hjust = 0.5))
+  theme(plot.title  = element_text(size = 14, face = 'bold', hjust = 0.5),
+        axis.text = element_blank(),
+        axis.ticks = element_blank())
 
 m_actual <- ggplot(riesgo)+
   geom_sf(aes(fill = indice))+
@@ -288,9 +331,62 @@ m_actual <- ggplot(riesgo)+
                                                       end = 0.98),
                        limits = c(-2.2, 3.7)) +
   theme_bw() +
-  theme(plot.title  = element_text(size = 14, face = 'bold', hjust = 0.5))
+  theme(plot.title  = element_text(size = 14, face = 'bold', hjust = 0.5),
+        axis.text = element_blank(),
+        axis.ticks = element_blank())
 
 cowplot::plot_grid(m_actual, m_riesgo, align = 'hv', ncol = 2)
+```
+
+
+```{r}
+# set.seed(1234)
+# nsim <- 999
+# N <- length(rni)
+# sims <- matrix(0, ncol = nsim, nrow = N)
+# for (i in 1:nsim) {
+# y <- rpois(N, lambda = rni)
+# sdCRi <- (y - rni)/sqrt(rni)
+# wsdCRi <- lag(lw, sdCRi)
+# sims[, i] <- sdCRi * wsdCRi
+# }
+# xrank <- apply(cbind(I_CR, sims), 1, function(x) rank(x)[1])
+# diff <- nsim - xrank
+# diff <- ifelse(diff > 0, diff, 0)
+# pval <- punif((diff + 1)/(nsim + 1))
+
+monte_carlo_sim <- function(nsim, prop, Ii, nb){
+  N <- length(prop)
+  sims <- matrix(0, ncol = nsim, nrow = N)
+  for (i in 1:nsim) {
+    y <- rpois(N, lambda = prop)
+    z <- (y - prop)/sqrt(prop)
+    rezago <- stats::lag(nb2listw(nb, style = "C"), z)
+    sims[, i] <- z * rezago
+  }
+  xrank <- apply(cbind(Ii, sims), 1, function(x) rank(x)[1])
+  diff <- nsim - xrank
+  diff <- ifelse(diff > 0, diff, 0)
+  pval <- punif((diff + 1)/(nsim + 1))
+  return(pval)
+}
+
+mc_sim <- riesgo %>% 
+  select(p_afectada, indice_riesgo) %>% 
+  mutate(pvalue = monte_carlo_sim(999, p_afectada,
+                                  indice_riesgo, NY_nb))
+ggplot(mc_sim)+
+  geom_sf() +
+  geom_sf(aes(fill = pvalue),
+          data = filter(mc_sim, pvalue < 0.1 | pvalue > 0.9))+
+  labs(title = 'Mapa de riesgo aleatorio')+
+  scale_fill_gradientn(colours = viridisLite::viridis(20, begin = 0.17,
+                                                      end = 0.98)) +
+  theme_bw() +
+  theme(plot.title  = element_text(size = 14, face = 'bold', hjust = 0.5),
+        axis.text = element_blank(),
+        axis.ticks = element_blank())
+
 ```
 
 
