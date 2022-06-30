@@ -321,7 +321,7 @@ nysar <- spautolm(Z~PEXPOSURE+PCTAGE65P+PCTOWNHOME, data=NY8, listw=NYlistw)
 summary(nysar)
 
 nylam1 <- c(nysar$lambda)
-nylam2 <- c(LR1.spautolm(nysar)$p.value)
+nylam2 <- c(LR1.Spautolm(nysar)$p.value)
 
 NY8$sar_trend <- nysar$fit$signal_trend
 NY8$sar_stochastic <- nysar$fit$signal_stochastic

@@ -14,11 +14,13 @@ library(kableExtra)
 library(knitr)
 library(sf)
 library(tidyverse)
+library(spdep)
 ```
 
 # Modelación de datos en áreas
 
 ## Introducción 
+
 
 
 ### Dataset
@@ -32,14 +34,17 @@ plot(st_geometry(ny), axes = T)
 
 # Vecinos y pesos espaciales
 
+La creación de pesos espaciales es un paso necesario en el análisis de datos en área. El primer paso es definir cuales relaciones entre las observaciones tendrán pesos no nulos, es decir, escoger el criterio para que dos enlaces sean considerados como "vecinos"; el segundo es asignar los pesos a los enlaces identificados como "vecinos" en el paso anterior.
 
-# Objeto vecinos
+Crear los vecinos y pesos no es un proceso fácil y por lo tanto existen varias funciones y métodos en el paquete `spdep` que ayudan a realizar este trabajo. El paquete `ade4` contiene las funciones `nb2neig()` y `neig2nb()` las cuales ayudan a transformar objetos entre las clases `nb` y `neig`.
+
+## Objetos vecinos
 
 Un archivo `gal` es una matriz de pesos o vecinos producida por el software GeoDa. 
 
-```{r message=FALSE, warning=FALSE}
-library(spdep)
+Las observaciones enlazadas (vecinas) son objetos de clase `nb` en el paquete `spdep`; dichos objetos son una lista de tamaño $n$ 
 
+```{r message=FALSE, warning=FALSE}
 NY_nb <- read.gal('data/NY_nb.gal', # read.gal carga el archivo de clase nb
                   region.id = as.numeric(row.names(ny))-1) # Debe empezar en 0
 
@@ -259,8 +264,10 @@ Al igual que en el caso de la estadística global, se puede comprobar la diverge
 :::
 
 ```{r, fig.height=7, fig.width=7, fig.align='center'}
-local <- as.data.frame(localmoran(ny$Cases, listw = nb2listw(NY_nb, style = "C")))
-local2 <- as.data.frame(localmoran.sad(lm(Cases ~ 1, ny), nb = NY_nb, style = "C"))
+local <- as.data.frame(localmoran(ny$Cases, 
+                                  listw = nb2listw(NY_nb, style = "C")))
+local2 <- as.data.frame(localmoran.sad(lm(Cases ~ 1, ny),
+                                       nb = NY_nb, style = "C"))
 local3 <- as.data.frame(localmoran.exact(lm(Cases ~ 1, ny), nb = NY_nb, style = "C"))
 
 ny%>%
@@ -373,20 +380,39 @@ monte_carlo_sim <- function(nsim, prop, Ii, nb){
 
 mc_sim <- riesgo %>% 
   select(p_afectada, indice_riesgo) %>% 
-  mutate(pvalue = monte_carlo_sim(999, p_afectada,
-                                  indice_riesgo, NY_nb))
-ggplot(mc_sim)+
+  mutate(pvalue_cr = monte_carlo_sim(999, p_afectada,
+                                  indice_riesgo, NY_nb), 
+         pvalue_sad = local2$`Pr. (Sad)`,
+         pvalue_exact = local3$`Pr. (exact)`,
+         pvalue_rand = local$`Pr(z != E(Ii))`,
+         pvalue_norm = local2$`Pr. (N)`) %>% 
+  pivot_longer(cols = c("pvalue_cr", "pvalue_sad",
+                        "pvalue_exact", "pvalue_rand", "pvalue_norm"),
+               names_to = "type", values_to = "p_value") %>% 
+  mutate(discrete = cut(p_value, breaks = c(0, 0.05, 0.1,
+                               0.9, 0.95, 1, max(p_value)),
+                        include.lowest = T))
+```
+
+```{r plots-dep-valp, fig.width=7, fig.height=7}
+aux_labs <- c("pvalue_cr" = "Riesgo constante",
+              "pvalue_exact" = "Exacto",
+              "pvalue_norm" ="Normal",
+              "pvalue_rand" ="Aleatorio",
+              "pvalue_sad" ="Saddlepoint")
+
+ggplot(mc_sim) +
   geom_sf() +
-  geom_sf(aes(fill = pvalue),
-          data = filter(mc_sim, pvalue < 0.1 | pvalue > 0.9))+
-  labs(title = 'Mapa de riesgo aleatorio')+
-  scale_fill_gradientn(colours = viridisLite::viridis(20, begin = 0.17,
-                                                      end = 0.98)) +
+  geom_sf(aes(fill = discrete),
+          data = filter(mc_sim, p_value < 0.1 | p_value > 0.9 & 
+                          p_value < 1)) +
+  facet_wrap(~type, labeller = labeller(type = aux_labs)) +
+  labs(title = '')+
+  scale_fill_manual(values = viridisLite::viridis(5)) + 
   theme_bw() +
   theme(plot.title  = element_text(size = 14, face = 'bold', hjust = 0.5),
         axis.text = element_blank(),
         axis.ticks = element_blank())
-
 ```
 
 
