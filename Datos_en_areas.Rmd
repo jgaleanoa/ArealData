@@ -20,8 +20,11 @@ library(tidyverse)
 library(spdep)
 library(rgdal)
 library(RColorBrewer)
-library(rgdal)
 library(boot)
+library(spatialreg )
+library(lmtest)
+library(sandwich)
+library(mgcv)
 ```
 
 # Modelación de datos en áreas
@@ -648,3 +651,268 @@ ggplot(mc_sim) +
     axis.ticks = element_blank()
   )
 ```
+
+En este gráfico podemos verificar asumiendo distintas distribuciones para determinar si un área es atipica o de agrupación y esto nos sirve para verificar si los indices observados tienen sustento estadístico para tener mas peso de sustentarlo.
+
+# Ajuste de modelos para datos en área
+
+La dependencia espacial se puede modelar de diferentes formas por medio de modelos estadísticos, probablemente se piense en algunos supuestos como la independencia entre observaciones o distribución pero no es el caso de datos espaciales pero se puede explicar la autocorrelación espacial entre áreas vecinas pero si el vector de variables respuesta se distribuye normal multivariado se puede expresar de la siguiente manera:
+
+
+$$
+Y=\mu + e,
+$$
+
+
+Una transformación que se recomiendo es una logaritmica que incluya los pesos en nuestro caso la cantidad de población para considerar un riesgo heterogéneo y una de las alternativas es:
+
+
+$$
+Z_i=log \left( \frac{1000(Y_i+1)}{n_i}\right)
+$$
+
+
+
+```{r}
+TCE <- readOGR("data", "TCE")
+ny <- readOGR("data",'NY8_utm18')
+
+nylm <- lm(Z~PEXPOSURE+PCTAGE65P+PCTOWNHOME, data=ny)
+summary(nylm)
+```
+
+Con los datos en área se usa el centroide de cada poligono y se asignan varias covariables para crear un modelo de regresión lineal para explicar la variable Z, este es un ejemplo considerando 3 covariables.
+
+```{r}
+ny$lmresid <- residuals(nylm) # residuales modelo sin pesos
+NYlistw <- nb2listw(NY_nb, style = "B")
+lm.morantest(nylm, NYlistw)
+```
+
+Suponiendo que se ha eliminado la tendencia de la variable de interés y que las ponderaciones espaciales están estandarizadas por filas,
+el estimador de un paso del parámetro de regresión espacial puede producir más
+información comparativa que el I de Moran. A modo de comparación, mostramos la estimación del parámetro de máxima verosimilitud ajustada utilizando los mismos datos:
+
+```{r}
+NYlistwW <- nb2listw(NY_nb, style = "W")
+aple(residuals(nylm), listw=NYlistwW)
+```
+
+
+```{r}
+spautolm(Z~PEXPOSURE+PCTAGE65P+PCTOWNHOME, data=ny, listw=NYlistwW)$lambda
+```
+
+
+```{r}
+nysar <- spautolm(Z~PEXPOSURE+PCTAGE65P+PCTOWNHOME, data=ny, listw=NYlistw)
+summary(nysar)
+```
+
+
+Con los resultados obtenidos se observa que existe una correlación en los residuales por que el valor estimado de $\lambda$ es 0.0405 y el valor p es 0.022. en la prueba de máxima verosimilitud aunque el parámetro sea significativo a un nivel de confianza del 95% pero es bueno verificar con otro tipo de modelo para no descartar una posible asociación.
+
+Por otro lado la covariable exposición no es significativa. 
+
+
+
+```{r}
+nylam1 <- c(nysar$lambda)
+nylam2 <- c(LR1.Spautolm(nysar)$p.value)
+
+ny$sar_trend <- nysar$fit$signal_trend
+ny$sar_stochastic <- nysar$fit$signal_stochastic
+rds <- colorRampPalette(brewer.pal(8, "RdBu"))
+tr_at <- seq(-1, 1.3, length.out=21)
+tr_rds <- rds(sum(tr_at >= 0)*2)[-(1:(sum(tr_at >= 0)-sum(tr_at < 0)))]
+tr_pl <- spplot(ny, c("sar_trend"), at=tr_at, col="transparent", col.regions=tr_rds, main=list(label="Trend", cex=0.8))
+st_at <- seq(-0.16, 0.39, length.out=21)
+st_rds <- rds(sum(st_at >= 0)*2)[-(1:(sum(st_at >= 0)-sum(st_at < 0)))]
+st_pl <- spplot(ny, c("sar_stochastic"), at=st_at, col="transparent", col.regions=st_rds, main=list(label="Stochastic", cex=0.8))
+plot(tr_pl, split=c(1,1,2,1), more=TRUE)
+plot(st_pl, split=c(2,1,2,1), more=FALSE)
+
+```
+
+Recordemos que este modelo no tiene en cuenta la distribución heterogénea de la población, es decir, considera que la población es igual en cada zona por esto se incluye al modelo lm al argumento weights = POP8.
+
+
+```{r}
+nylmw <- lm(Z~PEXPOSURE+PCTAGE65P+PCTOWNHOME, data=ny, weights=POP8)
+summary(nylmw)
+ny$lmwresid <- residuals(nylmw)
+```
+
+Añadiendo la ponderación de pesos se observa que la covariable exposición si es significativa que difiere con el modelo anterior, pues tiene sentido que exista un relación entre los casos de leucemia y el nivel de exposición.
+
+
+```{r}
+lm.morantest(nylmw, NYlistw)
+```
+
+ Los resultados son interesantes, sugiriendo que la mala especificación detectada por el I de Moran está de hecho relacionada con la heteroscedasticidad
+más que a la autocorrelación espacial.
+
+
+```{r}
+nysarw <- spautolm(Z ~ PEXPOSURE + PCTAGE65P + PCTOWNHOME,
+                   data = ny, listw = NYlistw, weights = POP8)
+summary(nysarw)
+```
+no hay rastros de espacio.
+autocorrelación que queda después de ajustar por el tamaño heterogéneo de la población
+
+```{r}
+
+gry <- c(rev(brewer.pal(6, "Reds")[1:4]), colorRampPalette(brewer.pal(5, "Blues"))(9))
+
+TCEpts <- list("sp.points", TCE, pch=16, col="grey5")
+
+spplot(ny, c("lmresid", "lmwresid"), sp.layout=list(TCEpts), col.regions=gry, col="transparent", lwd=0.5, at=seq(-2,4.5,0.5))
+```
+
+Se observa en pequeños poligonos que el modelo con ponderación se obtiene resudiales mas pequeños que con le modelo sin los pesos.
+
+```{r}
+ny$sarw_trend <- nysarw$fit$signal_trend
+ny$sarw_stochastic <- nysarw$fit$signal_stochastic
+tr_pl <- spplot(ny, c("sarw_trend"), at=tr_at, col="transparent", col.regions=tr_rds, main=list(label="Trend", cex=0.8))
+st_pl <- spplot(ny, c("sarw_stochastic"), at=st_at, col="transparent", col.regions=st_rds, main=list(label="Stochastic", cex=0.8))
+plot(tr_pl, split=c(1,1,2,1), more=TRUE)
+plot(st_pl, split=c(2,1,2,1), more=FALSE)
+
+```
+
+Esto sugiere que la variación espacial en la población
+entre tractos es responsable de la correlación espacial residual observada
+después de ajustar por covariables.
+
+
+## Modelos autorregresivos condicionales
+
+La especificación CAR se basa en la distribución condicional de la distribución de los errores que se expresa de la siguiente manera:
+
+$$
+e_i |  e_{j \sim \: i } \sim N \left( \sum_{j \sim i } \frac{c_{ij}e_j  }{\sum_{j\sim i  }c_{ij} }, \frac{\sim^{2}_{e_i} }{\sum_{j\sim i  }c_{ij}    } \right )
+$$
+
+donde $e_{j\sim i }$ representa los vecinos del área i y $c_{ij}$ son parámetros dependientes de $b_{ij}$. 
+
+Al final se obtiene que:
+
+$$
+E[Y] =X^T\beta \\
+Var(Y)   =\sigma^2(1-\lambda W )^{-1}(1-\lambda W^T )^{-1} 
+$$
+
+```{r}
+nycar <- spautolm(Z~PEXPOSURE+PCTAGE65P+PCTOWNHOME , data=ny, family="CAR",listw=NYlistw)
+summary(nycar)
+
+```
+Aunque la estimación de los parámetros sean similares a los del modelo SAR los valores de p de dos covariables, la distancia al TCE más cercano y el porcentaje de personas ser propietario de una vivienda, son mayores a un 0.05 asumiendo un nivel de confianza del 95% y aparte la prueba de verosimilitud nos dice que existe una autocorrelación espacial significativa. Esto sin considerar los pesos ponderados de POP8.
+
+```{r}
+nylam1 <- c(nycar$lambda)
+nycarw <- spautolm(Z~PEXPOSURE+PCTAGE65P+PCTOWNHOME, data=ny, family="CAR",listw=NYlistw, weights=POP8)
+summary(nycarw)
+```
+
+Para este caso con la misma metodologia aplicando los pesos se observa que las tres covariables son significativas ya que el p valor obtenido es muy pequeño. 
+
+## Ajuste de modelos de regresión espacial
+
+La función spautolm ajusta los modelos de regresión espacial por máxima verosimilitud, encontrando el coeficiente autoregresivo para que maximiza la función de verosimilitud para la familia de modelos elegida, y luego ajustando
+los otros coeficientes por mínimos cuadrados generalizados en ese punto. Esto significa
+que el coeficiente autorregresivo espacial se puede encontrar mediante la búsqueda de líneas utilizando
+optimizar, en lugar de optimizar sobre todos los parámetros del modelo en el
+Mismo tiempo. Se llega a la siguiente expresión:
+
+
+$$
+log(|I-\lambda W|)=log \left( \prod_{i=1}^n (1-\lambda \zeta_i) \right)
+$$
+
+Donde $ \zeta_i$ son los valores propios de $W$.
+
+```{r}
+nysarwM <- spautolm(Z~PEXPOSURE+PCTAGE65P+PCTOWNHOME, data=ny,family="SAR",listw=NYlistw, weights=POP8, method="Matrix")
+summary(nysarwM)
+```
+
+
+```{r}
+nysar_ll <- spautolm(Z~PEXPOSURE+PCTAGE65P+PCTOWNHOME, data=ny, family="SAR",listw=NYlistw, llprof=100)
+nysarw_ll <- spautolm(Z~PEXPOSURE+PCTAGE65P+PCTOWNHOME, data=ny, family="SAR",listw=NYlistw, weights=POP8, llprof=100)
+
+ylim <- range(c(nysarw_ll$llprof$ll, nysar_ll$llprof$ll), na.rm=TRUE)
+plot(nysarw_ll$llprof$lambda, nysarw_ll$llprof$ll, type="l", xlab=expression(lambda), ylab="log likelihood", ylim=ylim, lwd=2)
+abline(v=nysarw_ll$lambda)
+abline(h=nysarw_ll$LL)
+lines(nysar_ll$llprof$lambda, nysar_ll$llprof$ll, lty=2, lwd=2)
+abline(v=nysar_ll$lambda, lty=2)
+abline(h=nysar_ll$LL, lty=2)
+legend("bottom", legend=c("weighted SAR", "SAR"), lty=c(1,2), lwd=2, bty="n")
+```
+
+En este gráfico se muestra la función de log verosimilitud en función de $\lambda$ y donde alcanza su máximo.
+
+```{r}
+1/range(eigenw(NYlistw))
+```
+
+
+```{r}
+nysmaw <- spautolm(Z~PEXPOSURE+PCTAGE65P+PCTOWNHOME, data=ny, family="SMA",listw=NYlistw, weights=POP8)
+summary(nysmaw)
+```
+
+## Enfoques de econometría espacial
+
+Lo interesante de análisis de datos espaciales es la amplia gama de disciplinas involucradas, ya que esto se le puede dar multiples enfoques en esto cado para terminos ecónomicos. 
+
+Pues es de interes como bienes raíz, información financiera e indicadores ecónomicos que se pueden crear.
+
+La econometría espacial es descrita por Anselin (1988, 2002), y autorizadamente
+avanzado por LeSage y Pace (2009), con comentarios adicionales de
+Bivand (2002, 2006) con respecto a hacer econometría espacial en R.
+
+Como vimos anteriormente los datos se trataban de problemas epidemeológicos en el caso de econometria se propone diferentes supuestos como el área de econometria es algo complejo y no se cuenta con buenos conomientos en esa área y no es algo a lo que le vamos a dar mucha relevancia comentaremos algunas cosas pequeñas ya que algunas librerias no se encuentran en el CRAN por lo que presentamos problemas.
+
+
+## Otroa modelos 
+
+Se pueden utilizar otros metodos para explciar la correlación espacial como los GAM donde asumimos una distribución que no necesariamente es una normal.
+
+
+```{r}
+ny$x <- coordinates(ny)[, 1]/1000
+ny$y <- coordinates(ny)[, 2]/1000
+nyGAM1 <- gam(Z ~ PEXPOSURE + PCTAGE65P + PCTOWNHOME +
+s(x, y), weights = POP8, data = ny)
+anova(nylmw, nyGAM1, test = "Chisq")
+```
+
+En este caso esto no agrega valor a los modelos que ya vimos anteriormente.
+
+```{r}
+nyGLMp <- glm(Cases ~ PEXPOSURE + PCTAGE65P + PCTOWNHOME +
+                offset(log(POP8)), data = NY8, family = "poisson")
+summary(nyGLMp)
+```
+
+Hay poca sobredispersión presente - ajuste con la familia poisson en el que el parámetro de dispersión no se fija en la unidad, por lo que pueden modelar una dispersión excesiva que no da como resultado grandes cambios. 
+
+
+
+
+
+```{r}
+nyGAMp <- gam(Cases ~ PEXPOSURE + PCTAGE65P + PCTOWNHOME + offset(log(POP8)) + s(x, y), data = ny, family = "poisson")
+summary(nyGAMp)
+```
+
+```{r}
+anova(nyGLMp, nyGAMp, test = "Chisq")
+```
+
