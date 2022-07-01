@@ -1,7 +1,10 @@
 ---
 title: "Datos en áreas"
-author: "Juan Sebastián Mendoza Páez"
-date: '2022-06-25'
+author: 
+  - "Juan José Galeano Arenas"
+  - "Juan Sebastián Mendoza Páez"
+  - "Germán Alonso Patiño Hurtado"
+date: '2022-06-30'
 output:
   html_document:
     code_folding: hide
@@ -24,6 +27,19 @@ library(boot)
 # Modelación de datos en áreas
 
 ## Introducción
+
+Los datos espaciales suelen observarse en entidades poligonales con límites definidos. Los límites de los polígonos son definidos por el investigador, en algunos campos de estudio pueden ser arbitrarios en otros y pueden ser límites administrativos creados con fines muy diferentes en otros. Los datos observados suelen ser agregaciones dentro de los límites, como los recuentos de población. Las entidades territoriales pueden constituir en sí mismas las unidades de observación, por ejemplo cuando se estudia el comportamiento de los gobiernos locales donde las decisiones se toman a nivel de la entidad, por ejemplo, la fijación de los tipos impuestos locales. Sin embargo, en general, las entidades de área son agregados, recipientes, que se utilizan para contabilizar las mediciones, como los resultados de las votaciones en los colegios electorales. Muy a menudo, las entidades de área son una teselación exhaustiva del área de estudio, sin dejar ninguna parte del área total sin asignar a una entidad. Por supuesto, las entidades de área pueden estar formadas por múltiples entidades geométricas, como islas pertenecientes a un mismo condado; también pueden rodear completamente a otras entidades de área por completo, y pueden contener agujeros, como los lagos.
+
+Los límites de las entidades de área pueden definirse con algún otro propósito que su uso en el análisis de datos. Las zonas de código postal pueden ser útiles para el análisis, pero se crearon para facilitar los envíos postales. Sólo recientemente las organizaciones censales nacionales han aceptado que los cambios frecuentes, aparentemente justificados de los límites son un problema importante para los análisis longitudinales. Los límites arbitrarios de las unidades de área son un problema si su modificación puede conducir a resultados diferentes, y el caso del gerrymandering político es un recordatorio aleccionador de cómo los cambios en la agregación pueden cambiar los resultados. También pueden obstaculizar el análisis si la escala espacial o la huella de un proceso de generación de datos subyacente no se corresponde con los límites elegidos.
+
+Si la recopilación de datos puede diseñarse para que las entidades de área coincidan con los datos, se reducirá la influencia de la elección de los agregados. Un ejemplo podría ser la correspondencia de los datos del mercado laboral con los mercados laborales locales, tal vez definidos por los desplazamientos al trabajo. Por otro lado, si nos vemos obligados a utilizar límites arbitrarios, a menudo porque no hay otras fuentes de datos secundarios, debemos ser conscientes de las posibles dificultades. Estos desajustes se encuentran entre las razones para encontrar autocorrelación espacial en el análisis de los agregados de área; otras razones son los procesos espaciales sustanciales en los que las entidades se influyen entre sí por contagio, como la adopción de políticas similares por parte de los vecinos, y la especificación errónea del modelo que deja información con patrones espaciales en los residuos del modelo. Estas causas de la autocorrelación espacial observada pueden de la autocorrelación espacial observada, por lo que la identificación correcta de los procesos espaciales reales es una tarea interesante.
+
+Un amplio rango de disciplinas científicas se ha encontrado con la autocorrelación espacial entre entidades de área, con el término “problema de Galton” utilizado en varias. El problema consiste en establecer cuántas observaciones efectivamente independientes están presentes cuando se han utilizado límites arbitrarios para dividir un área de estudio. En su intercambio con Tyler en 1889, Galton cuestionó si las observaciones de las leyes matrimoniales a través de entidades areales constituían observaciones independientes, ya que sólo podían reflejar un patrón general del todos descienden. Así, la dependencia espacial positiva tiende a reducir la cantidad de información contenida en las observaciones, porque las observaciones próximas pueden utilizarse
+en parte para predecirse mutuamente.
+
+hemos visto cómo las distancias en una superficie continua pueden utilizarse para estructurar la autocorrelación espacial, por ejemplo con el variograma. Aquí nos ocuparemos de las entidades de área que se definen como vecinos. En una superficie continua, todos los puntos son vecinos de los demás, aunque algunos pueden tener muy poco peso, porque están muy distantes. En una superficie teselada, podemos elegir definiciones de vecinos que dividen el conjunto de todas las entidades (excluyendo la observación i) en miembros o no miembros del conjunto de vecinos de la observación i. También podemos decidir dar a cada relación de vecindad un peso igual, o variar los pesos en los arcos del grafo dirigido que describe la dependencia espacial.
+
+En la siguiente sección se tratará la construcción de los vecinos y los pesos que pueden aplicarse a las vecindades. Una vez establecido este importante y a menudo exigente prerrequisito, pasamos a estudiar las formas de medir la autocorrelación espacial. Aunque las pruebas se basan en modelos de procesos espaciales, primero examinamos pruebas, y después pasamos a la modelización. También nos interesa mostrar cómo se puede introducir la autocorrelación espacial en datos datos independientes, para poder realizar simulaciones. Hay que tener en cuenta que el patrón espacial que encontremos puede indicar únicamente que nuestro modelo actual de los datos no es adecuado. Esto se aplica a las unidades de área que no se ajustan al proceso de de generación de datos, a las variables que faltan, incluidas las que tienen una forma forma funcional incorrecta, y a las diferencias entre nuestras suposiciones sobre los datos y sus distribuciones reales, que a menudo se muestran como una dispersión excesiva en los datos de recuento.
 
 ### Dataset
 
